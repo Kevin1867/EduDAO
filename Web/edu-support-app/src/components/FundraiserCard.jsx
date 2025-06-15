@@ -19,16 +19,14 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 
-// import { RouterLink } from 'src/routes/components';
 import { RouterLink } from '/src/components/router-link';
 
-import { ETHEREUM_URL } from './index.jsx';
-import fundraiserContractABI from './abi/Fundraiser-abi.json';
+import { ETHEREUM_URL } from '../pages/BrowseProposalsPage'; // Adjusted Path
+import fundraiserContractABI from '../edu-support/abi/Fundraiser-abi.json'; // Adjusted Path
 
-const FundraiserCard = ({ fundraiser }) => {
+const FundraiserCard = ({ fundraiser, connectedAccount }) => { // Added connectedAccount to props
   // State variables for Web3, accounts, contract instance, UI control, and contract data
   const [web3, setWeb3] = useState(null);
-  const [accounts, setAccounts] = useState([]);
   const [contract, setContract] = useState(null);
   const [newFundBeneficiary, setNewFundBeneficiary] = useState('');
 
@@ -55,18 +53,10 @@ const FundraiserCard = ({ fundraiser }) => {
   const init = async () => {
     try {
       let web3Instance;
-      let userAccounts = [];
-
+      
+      // Use connected wallet if available, otherwise fallback to public provider
       if (window.ethereum) {
-        // Silent check: won't pop up MetaMask
-        userAccounts = await window.ethereum.request({ method: 'eth_accounts' });
-
-        if (userAccounts.length > 0) {
-          web3Instance = new Web3(window.ethereum);
-        } else {
-          console.warn('MetaMask not connected. Using fallback provider.');
-          web3Instance = new Web3(ETHEREUM_URL);
-        }
+        web3Instance = new Web3(window.ethereum);
       } else {
         console.warn('MetaMask not detected. Using fallback provider.');
         web3Instance = new Web3(ETHEREUM_URL);
@@ -75,7 +65,6 @@ const FundraiserCard = ({ fundraiser }) => {
       const fundraiserContract = new web3Instance.eth.Contract(fundraiserContractABI, fundraiser);
 
       setWeb3(web3Instance);
-      setAccounts(userAccounts);
       setContract(fundraiserContract);
 
       // Load contract metadata
@@ -113,61 +102,51 @@ const FundraiserCard = ({ fundraiser }) => {
         console.error('Exchange rate fetch error:', error);
       }
 
-      if (userAccounts.length > 0) {
+      if (connectedAccount) {
         const userDonationsData = await fundraiserContract.methods
           .myDonations()
-          .call({ from: userAccounts[0] });
+          .call({ from: connectedAccount });
         setUserDonations(userDonationsData);
 
         const owner = await fundraiserContract.methods.owner().call();
-        setIsOwner(owner.toLowerCase() === userAccounts[0].toLowerCase());
+        setIsOwner(owner.toLowerCase() === connectedAccount.toLowerCase());
       }
     } catch (error) {
       console.error(error);
-      alert('Failed to initialise Web3 or contract');
+      // alert('Failed to initialise Web3 or contract');
     }
   };
 
   // Load fundraiser on mount or address change
   useEffect(() => {
     if (fundraiser) init();
-  }, [fundraiser]);
+  }, [fundraiser, connectedAccount]); // Rerun init if connectedAccount changes
 
-  useEffect(() => {
-    if (!window.ethereum) return undefined;
-
-    const handleAccountsChanged = (newAccounts) => {
-      console.log('Account changed:', fundraiser, newAccounts);
-      // setAccounts(newAccounts);
-      init();
-    };
-
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
-
-    return () => {
-      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-    };
-  }, []);
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
 
   // Handle donation transaction
   const donateFunds = async () => {
+    if (!connectedAccount) {
+      alert("Please connect your wallet to donate.");
+      return;
+    }
     try {
       const ethTotal = parseFloat(donationAmount) / exchangeRate;
       const donation = web3.utils.toWei(ethTotal.toString(), 'ether');
 
       const gasEstimate = await contract.methods
         .donate()
-        .estimateGas({ from: accounts[0], value: donation })
+        .estimateGas({ from: connectedAccount, value: donation })
         .catch(() => 650000);
 
       await contract.methods
         .donate()
-        .send({ from: accounts[0], value: donation, gas: gasEstimate });
+        .send({ from: connectedAccount, value: donation, gas: gasEstimate });
       alert('Donation successful');
       setOpen(false);
+      init(); // Refresh data after donation
     } catch (error) {
       console.error('Donation failed:', error);
       alert('Donation failed');
@@ -177,9 +156,10 @@ const FundraiserCard = ({ fundraiser }) => {
   // Handle owner withdrawal
   const withdrawFunds = async () => {
     try {
-      await contract.methods.withdraw().send({ from: accounts[0] });
+      await contract.methods.withdraw().send({ from: connectedAccount });
       alert('Withdrawal successful');
       setOpen(false);
+      init(); // Refresh data after withdrawal
     } catch (error) {
       console.error('Withdrawal failed:', error);
       alert('Withdrawal failed');
@@ -189,7 +169,7 @@ const FundraiserCard = ({ fundraiser }) => {
   // Owner sets new beneficiary address
   const setBeneficiary = async () => {
     try {
-      await contract.methods.setBeneficiary(newFundBeneficiary).send({ from: accounts[0] });
+      await contract.methods.setBeneficiary(newFundBeneficiary).send({ from: connectedAccount });
       alert('Beneficiary updated');
       setOpen(false);
     } catch (error) {
@@ -201,28 +181,18 @@ const FundraiserCard = ({ fundraiser }) => {
   // Render list of user's past donations
   const renderDonationsList = () => {
     if (!userDonations?.values?.length || !userDonations?.dates?.length) {
-      return <p>No donations yet</p>;
+      return <p>No donations yet from you.</p>;
     }
 
     return userDonations.values.map((value, i) => {
       const eth = web3.utils.fromWei(value, 'ether');
       const usd = (exchangeRate * eth).toFixed(2);
+      const date = new Date(userDonations.dates[i] * 1000).toLocaleDateString();
       return (
         <div key={i}>
           <Typography variant="body2" color="text.secondary">
-            ${usd}
+            On {date}, you donated ${usd}
           </Typography>
-          <Button variant="contained" color="primary">
-            <Link
-              component={RouterLink}
-              // href="/dashboard/fundraising/receipts"
-              href="/fundraising/receipts"
-              state={{ fund: contractData.fundName, date: userDonations.dates[i], money: usd }}
-              style={{ textDecoration: 'none', color: 'inherit' }}
-            >
-              Request Receipt
-            </Link>
-          </Button>
         </div>
       );
     });
@@ -236,36 +206,30 @@ const FundraiserCard = ({ fundraiser }) => {
         <DialogTitle>Donate to {contractData.fundName}</DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={2}>
-            <img
-              src={contractData.fundImageURL}
-              width="200"
-              height="130"
-              alt={contractData.fundName}
-            />
             <Typography variant="body2">{contractData.fundDescription}</Typography>
             <FormControl>
               <Input
                 value={donationAmount}
                 onChange={(e) => setDonationAmount(e.target.value)}
                 placeholder="0.00"
+                startAdornment={<Typography variant="body1" sx={{ mr: 1 }}>$</Typography>}
               />
+              <Typography variant="caption">~{ethAmount} ETH</Typography>
             </FormControl>
-            <Typography variant="body2">ETH: {ethAmount}</Typography>
-            <Button onClick={donateFunds} variant="contained">
-              Donate
-            </Button>
-            <Typography variant="body2">My Donations</Typography>
-            {renderDonationsList()}
-            {isOwner && (
-              <Box>
-                <FormControl fullWidth>
-                  <Input
-                    value={newFundBeneficiary}
-                    onChange={(e) => setNewFundBeneficiary(e.target.value)}
-                    placeholder="New Beneficiary Address"
-                  />
-                </FormControl>
-                <Button variant="contained" sx={{ mt: 2 }} onClick={setBeneficiary}>
+             {isOwner && (
+              <Box mt={2}>
+                <Typography variant="h6">Admin Controls</Typography>
+                <Button onClick={withdrawFunds} variant="contained" color="secondary" fullWidth>
+                  Withdraw Funds
+                </Button>
+                <TextField 
+                  fullWidth
+                  label="New Beneficiary Address" 
+                  value={newFundBeneficiary}
+                  onChange={(e) => setNewFundBeneficiary(e.target.value)}
+                  sx={{ mt: 1 }}
+                />
+                <Button onClick={setBeneficiary} variant="outlined" sx={{ mt: 1 }} fullWidth>
                   Set Beneficiary
                 </Button>
               </Box>
@@ -274,50 +238,42 @@ const FundraiserCard = ({ fundraiser }) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          {isOwner && (
-            <Button variant="contained" onClick={withdrawFunds}>
-              Withdraw
-            </Button>
-          )}
+          <Button onClick={donateFunds} variant="contained">Donate</Button>
         </DialogActions>
       </Dialog>
-
-      {/* Fundraiser summary card */}
-      <Card sx={{ maxWidth: 400 }}>
-        {contractData.fundImageURL && (
-          <CardMedia
-            component="img"
-            height="250"
-            image={contractData.fundImageURL}
-            alt="Fundraiser Image"
-            onClick={handleOpen}
-          />
-        )}
-        <CardContent>
-          <Typography gutterBottom variant="h5">
+      
+      <Card sx={{ maxWidth: 345, m: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <CardMedia
+          component="img"
+          height="140"
+          image={contractData.fundImageURL || 'https://via.placeholder.com/345x140?text=EduDAO'}
+          alt={contractData.fundName}
+        />
+        <CardContent sx={{ flexGrow: 1 }}>
+          <Typography gutterBottom variant="h5" component="div">
             {contractData.fundName}
           </Typography>
-          <Stack spacing={2} alignItems="flex-start">
-            <Typography variant="body2" color="text.secondary">
-              Description: {contractData.fundDescription}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              URL: {contractData.fundURL}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Total Donations: ${totalDonations}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" align="left">
-              Beneficiary Wallet Address: {contractData.fundBeneficiary}
-            </Typography>
-          </Stack>
-          <Button onClick={handleOpen} variant="contained">
-            More
-          </Button>
+          <Typography variant="body2" color="text.secondary" noWrap>
+            {contractData.fundDescription}
+          </Typography>
+          <Typography variant="body2" color="text.primary" sx={{ mt: 1 }}>
+            Total Raised: ${totalDonations}
+          </Typography>
+          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+            Beneficiary: {`${contractData.fundBeneficiary.slice(0, 6)}...${contractData.fundBeneficiary.slice(-4)}`}
+          </Typography>
         </CardContent>
+        <Stack spacing={1} sx={{ p: 2, mt: 'auto' }}>
+          <Button variant="contained" onClick={handleOpen}>
+            Donate Now
+          </Button>
+          <Link href={contractData.fundURL} target="_blank" rel="noopener" sx={{ textAlign: 'center' }}>
+            Learn More
+          </Link>
+        </Stack>
       </Card>
     </>
   );
 };
 
-export default FundraiserCard;
+export default FundraiserCard; 

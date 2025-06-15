@@ -1,58 +1,76 @@
 import './App.css';
+import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
-import Link from '@mui/material/Link';
-import { Stack } from '@mui/material';
-
-// import { RouterLink } from 'src/routes/components';
-import { RouterLink } from '/src/components/router-link';
-
-import LogoBTC from './assets/logo-btc.svg';
-import LogoPepe from './assets/logo-pepe.svg';
-import PageViewFundraiser from './edu-support';
+import MainLayout from './layouts/MainLayout';
+import BrowseProposalsPage from './pages/BrowseProposalsPage';
+import CreateProposalPage from './pages/CreateProposalPage';
+import DAOPage from './pages/DAOPage';
 import PageReceipts from './edu-support/Receipts';
-import PageCreateFundraiser from './edu-support/CreateFundraiser';
-// import SustainableMemeLab1 from './assets/sustainable-meme-lab-1.png'
-// import SustainableMemeLab2 from './assets/sustainable-meme-lab-2.png'
 
 function App() {
+  const [accounts, setAccounts] = useState([]);
+
+  const connectWallet = async () => {
+    if (!window.ethereum) {
+      alert('MetaMask not installed');
+      return;
+    }
+    try {
+      const userAccounts = await window.ethereum.request({
+        method: 'eth_requestAccounts',
+      });
+      setAccounts(userAccounts);
+    } catch (error) {
+      console.error('User denied account access:', error);
+    }
+  };
+
+  useEffect(() => {
+    const checkWalletConnection = async () => {
+      if (window.ethereum) {
+        try {
+          const existingAccounts = await window.ethereum.request({
+            method: 'eth_accounts',
+          });
+          if (existingAccounts.length > 0) {
+            setAccounts(existingAccounts);
+          }
+        } catch (error) {
+          console.error('Silent wallet check failed:', error);
+        }
+      }
+    };
+    checkWalletConnection();
+
+    const handleAccountsChanged = (newAccounts) => {
+      setAccounts(newAccounts);
+    };
+
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      }
+    };
+  }, []);
+
   return (
-    <>
-      <div style={{ textAlign: 'center' }}>
-        <a>
-          <img src={LogoBTC} className="logo" alt="Bitcoin logo" />
-        </a>
-        <a>
-          <img src={LogoPepe} className="logo react" alt="Pepe logo" />
-        </a>
-        {/* <h1>Fundraising</h1> */}
-      </div>
-
-      <div>
-        {/* <Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
-          <Link component={RouterLink} href="/dashboard/fundraising">Main</Link>
-          <Link component={RouterLink} href="/dashboard/fundraising/view-fundraiser">View</Link>
-          <Link component={RouterLink} href="/dashboard/fundraising/create-fundraiser">Create</Link>
-        </Stack> */}
-
-        <Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
-          <Link component={RouterLink} href="/">View</Link>
-          <Link component={RouterLink} href="/edu-support/create-fundraiser">Create</Link>
-        </Stack>
-
-        {/* Define Routes */}
-        <Routes>
-          <Route path="/" element={<PageViewFundraiser />} />
-          <Route path="/edu-support/create-fundraiser" element={<PageCreateFundraiser />} />
-          <Route path="/edu-support/receipts" element={<PageReceipts />} />
-        </Routes>
-
-        {/* <Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
-          <img src={SustainableMemeLab1} className="logo" alt="Sustainable Meme Lab 1" style={{ height: '350px' }} />
-          <img src={SustainableMemeLab2} className="logo" alt="Sustainable Meme Lab 2" style={{ height: '350px' }} />
-        </Stack> */}
-      </div>
-    </>
+    <Routes>
+      <Route
+        element={
+          <MainLayout onConnectWallet={connectWallet} walletAddress={accounts[0]} />
+        }
+      >
+        <Route path="/" element={<BrowseProposalsPage />} />
+        <Route path="/create-proposal" element={<CreateProposalPage />} />
+        <Route path="/dao" element={<DAOPage />} />
+        <Route path="/edu-support/receipts" element={<PageReceipts />} />
+      </Route>
+    </Routes>
   );
 }
 
