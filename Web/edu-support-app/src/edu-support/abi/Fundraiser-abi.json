@@ -25,10 +25,10 @@
       {
         "name": "_beneficiary",
         "type": "address",
-        "internalType": "address payable"
+        "internalType": "address"
       },
       {
-        "name": "_custodian",
+        "name": "_owner",
         "type": "address",
         "internalType": "address"
       }
@@ -78,19 +78,6 @@
   },
   {
     "type": "function",
-    "name": "donationsCount",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "imageURL",
     "inputs": [],
     "outputs": [
@@ -105,25 +92,13 @@
   {
     "type": "function",
     "name": "myDonations",
-    "inputs": [],
-    "outputs": [
+    "inputs": [
       {
-        "name": "values",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "dates",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "myDonationsCount",
-    "inputs": [],
     "outputs": [
       {
         "name": "",
@@ -161,13 +136,6 @@
   },
   {
     "type": "function",
-    "name": "renounceOwnership",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "setBeneficiary",
     "inputs": [
       {
@@ -191,19 +159,6 @@
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "transferOwnership",
-    "inputs": [
-      {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -236,38 +191,6 @@
         "internalType": "address"
       },
       {
-        "name": "value",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OwnershipTransferred",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "Withdraw",
-    "inputs": [
-      {
         "name": "amount",
         "type": "uint256",
         "indexed": false,
@@ -277,25 +200,16 @@
     "anonymous": false
   },
   {
-    "type": "error",
-    "name": "OwnableInvalidOwner",
+    "type": "event",
+    "name": "Withdrawal",
     "inputs": [
       {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "OwnableUnauthorizedAccount",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    ],
+    "anonymous": false
   }
 ]

@@ -4,29 +4,29 @@
     "name": "createFundraiser",
     "inputs": [
       {
-        "name": "name",
+        "name": "_name",
         "type": "string",
         "internalType": "string"
       },
       {
-        "name": "url",
+        "name": "_url",
         "type": "string",
         "internalType": "string"
       },
       {
-        "name": "imageURL",
+        "name": "_imageURL",
         "type": "string",
         "internalType": "string"
       },
       {
-        "name": "description",
+        "name": "_description",
         "type": "string",
         "internalType": "string"
       },
       {
-        "name": "beneficiary",
+        "name": "_beneficiary",
         "type": "address",
-        "internalType": "address payable"
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -37,21 +37,16 @@
     "name": "fundraisers",
     "inputs": [
       {
-        "name": "limit",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "offset",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
     "outputs": [
       {
-        "name": "collection",
-        "type": "address[]",
-        "internalType": "address[]"
+        "name": "",
+        "type": "address",
+        "internalType": "contract Fundraiser"
       }
     ],
     "stateMutability": "view"
@@ -70,11 +65,24 @@
     "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "getAllFundraisers",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "contract Fundraiser[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
     "type": "event",
     "name": "FundraiserCreated",
     "inputs": [
       {
-        "name": "fundraiser",
+        "name": "fundraiserAddress",
         "type": "address",
         "indexed": true,
         "internalType": "address"

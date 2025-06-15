@@ -27,7 +27,7 @@ const BrowseProposalsPage = () => {
           fundraiserFactoryContractABI,
           fundraiserFactoryContractAddr.address
         );
-        const newFunds = await instance.methods.fundraisers(10, 0).call();
+        const newFunds = await instance.methods.getAllFundraisers().call();
         setFunds(newFunds);
       } catch (error) {
         console.error(error);
