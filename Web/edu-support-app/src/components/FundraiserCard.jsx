@@ -1,276 +1,184 @@
 // FundraiserCard.jsx - Displays a fundraising campaign card with donation, withdrawal, and beneficiary features
 
-import Web3 from 'web3';
-import cc from 'cryptocompare';
 import { useState, useEffect } from 'react';
+import Web3 from 'web3';
 
 import Box from '@mui/material/Box';
-import Link from '@mui/material/Link';
 import Card from '@mui/material/Card';
-import Stack from '@mui/material/Stack';
-import Input from '@mui/material/Input';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import CardMedia from '@mui/material/CardMedia';
 import Typography from '@mui/material/Typography';
+import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
-import FormControl from '@mui/material/FormControl';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
+import Chip from '@mui/material/Chip';
+import VerifiedIcon from '@mui/icons-material/Verified';
+import TextField from '@mui/material/TextField';
+import CircularProgress from '@mui/material/CircularProgress';
 
-import { RouterLink } from '/src/components/router-link';
+import { FUNDRAISER_ABI } from '../contracts.js';
 
-import { ETHEREUM_URL } from '../pages/BrowseProposalsPage'; // Adjusted Path
-import fundraiserContractABI from '../edu-support/abi/Fundraiser-abi.json'; // Adjusted Path
-
-const FundraiserCard = ({ fundraiser, connectedAccount }) => { // Added connectedAccount to props
-  // State variables for Web3, accounts, contract instance, UI control, and contract data
-  const [web3, setWeb3] = useState(null);
-  const [contract, setContract] = useState(null);
-  const [newFundBeneficiary, setNewFundBeneficiary] = useState('');
-
-  // Contract metadata and donation state
-  const [contractData, setContractData] = useState({
-    fundName: '',
-    fundURL: '',
-    fundImageURL: '',
-    fundDescription: '',
-    fundBeneficiary: '',
-    fundTotalDonationsWei: '',
-  });
-
-  const [totalDonations, setTotalDonations] = useState(0);
-  const [userDonations, setUserDonations] = useState({ values: [], dates: [] });
+const FundraiserCard = ({ fundraiser, connectedAccount }) => {
   const [donationAmount, setDonationAmount] = useState('');
-  const [exchangeRate, setExchangeRate] = useState(0);
-  const [isOwner, setIsOwner] = useState(false);
+  const [isBeneficiary, setIsBeneficiary] = useState(false);
   const [open, setOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const web3 = new Web3(window.ethereum);
 
-  // Convert USD donation amount to ETH using exchange rate
-  const ethAmount = (donationAmount / exchangeRate || 0).toFixed(4);
-
-  const init = async () => {
-    try {
-      let web3Instance;
-      
-      // Use connected wallet if available, otherwise fallback to public provider
-      if (window.ethereum) {
-        web3Instance = new Web3(window.ethereum);
-      } else {
-        console.warn('MetaMask not detected. Using fallback provider.');
-        web3Instance = new Web3(ETHEREUM_URL);
-      }
-
-      const fundraiserContract = new web3Instance.eth.Contract(fundraiserContractABI, fundraiser);
-
-      setWeb3(web3Instance);
-      setContract(fundraiserContract);
-
-      // Load contract metadata
-      const [
-        fundName,
-        fundURL,
-        fundImageURL,
-        fundDescription,
-        fundBeneficiary,
-        fundTotalDonationsWei,
-      ] = await Promise.all([
-        fundraiserContract.methods.name().call(),
-        fundraiserContract.methods.url().call(),
-        fundraiserContract.methods.imageURL().call(),
-        fundraiserContract.methods.description().call(),
-        fundraiserContract.methods.beneficiary().call(),
-        fundraiserContract.methods.totalDonations().call(),
-      ]);
-
-      setContractData({
-        fundName,
-        fundURL,
-        fundImageURL,
-        fundDescription,
-        fundBeneficiary,
-        fundTotalDonationsWei,
-      });
-
-      try {
-        const prices = await cc.price('ETH', ['USD']); // Fetch the current exchange rate of ETH to USD
-        setExchangeRate(prices.USD);
-        const eth = web3Instance.utils.fromWei(fundTotalDonationsWei, 'ether');
-        setTotalDonations((prices.USD * eth).toFixed(2));
-      } catch (error) {
-        console.error('Exchange rate fetch error:', error);
-      }
-
-      if (connectedAccount) {
-        const userDonationsData = await fundraiserContract.methods
-          .myDonations()
-          .call({ from: connectedAccount });
-        setUserDonations(userDonationsData);
-
-        const owner = await fundraiserContract.methods.owner().call();
-        setIsOwner(owner.toLowerCase() === connectedAccount.toLowerCase());
-      }
-    } catch (error) {
-      console.error(error);
-      // alert('Failed to initialise Web3 or contract');
-    }
-  };
-
-  // Load fundraiser on mount or address change
   useEffect(() => {
-    if (fundraiser) init();
-  }, [fundraiser, connectedAccount]); // Rerun init if connectedAccount changes
-
+    if (connectedAccount && fundraiser) {
+      setIsBeneficiary(
+        fundraiser.beneficiary.toLowerCase() === connectedAccount.toLowerCase()
+      );
+    } else {
+      setIsBeneficiary(false);
+    }
+  }, [connectedAccount, fundraiser]);
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
 
-  // Handle donation transaction
-  const donateFunds = async () => {
+  const handleDonate = async () => {
     if (!connectedAccount) {
-      alert("Please connect your wallet to donate.");
+      alert('Please connect your wallet to donate.');
       return;
     }
+    if (!donationAmount || parseFloat(donationAmount) <= 0) {
+      alert('Please enter a valid donation amount.');
+      return;
+    }
+    setIsLoading(true);
     try {
-      const ethTotal = parseFloat(donationAmount) / exchangeRate;
-      const donation = web3.utils.toWei(ethTotal.toString(), 'ether');
-
-      const gasEstimate = await contract.methods
+      const donationWei = web3.utils.toWei(donationAmount, 'ether');
+      const fundraiserContract = new web3.eth.Contract(
+        FUNDRAISER_ABI,
+        fundraiser.address
+      );
+      await fundraiserContract.methods
         .donate()
-        .estimateGas({ from: connectedAccount, value: donation })
-        .catch(() => 650000);
+        .send({ from: connectedAccount, value: donationWei });
 
-      await contract.methods
-        .donate()
-        .send({ from: connectedAccount, value: donation, gas: gasEstimate });
-      alert('Donation successful');
-      setOpen(false);
-      init(); // Refresh data after donation
+      alert('Donation successful! The page will now refresh to show the updated balance.');
+      handleClose();
+      window.location.reload(); 
     } catch (error) {
       console.error('Donation failed:', error);
-      alert('Donation failed');
+      alert(`Donation failed: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Handle owner withdrawal
-  const withdrawFunds = async () => {
+  const handleWithdraw = async () => {
+    setIsLoading(true);
     try {
-      await contract.methods.withdraw().send({ from: connectedAccount });
-      alert('Withdrawal successful');
-      setOpen(false);
-      init(); // Refresh data after withdrawal
+      const fundraiserContract = new web3.eth.Contract(
+        FUNDRAISER_ABI,
+        fundraiser.address
+      );
+      await fundraiserContract.methods.withdraw().send({ from: connectedAccount });
+      alert('Withdrawal successful! The page will now refresh.');
+      handleClose();
+      window.location.reload();
     } catch (error) {
       console.error('Withdrawal failed:', error);
-      alert('Withdrawal failed');
+      alert(`Withdrawal failed: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Owner sets new beneficiary address
-  const setBeneficiary = async () => {
-    try {
-      await contract.methods.setBeneficiary(newFundBeneficiary).send({ from: connectedAccount });
-      alert('Beneficiary updated');
-      setOpen(false);
-    } catch (error) {
-      console.error('Set beneficiary failed:', error);
-      alert('Set beneficiary failed');
-    }
-  };
-
-  // Render list of user's past donations
-  const renderDonationsList = () => {
-    if (!userDonations?.values?.length || !userDonations?.dates?.length) {
-      return <p>No donations yet from you.</p>;
-    }
-
-    return userDonations.values.map((value, i) => {
-      const eth = web3.utils.fromWei(value, 'ether');
-      const usd = (exchangeRate * eth).toFixed(2);
-      const date = new Date(userDonations.dates[i] * 1000).toLocaleDateString();
-      return (
-        <div key={i}>
-          <Typography variant="body2" color="text.secondary">
-            On {date}, you donated ${usd}
-          </Typography>
-        </div>
-      );
-    });
-  };
-
-  // Main render output
   return (
     <>
-      {/* Donation dialog */}
-      <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Donate to {contractData.fundName}</DialogTitle>
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
+        <DialogTitle>Contribute to: {fundraiser.name}</DialogTitle>
         <DialogContent>
-          <Box display="flex" flexDirection="column" gap={2}>
-            <Typography variant="body2">{contractData.fundDescription}</Typography>
-            <FormControl>
-              <Input
-                value={donationAmount}
-                onChange={(e) => setDonationAmount(e.target.value)}
-                placeholder="0.00"
-                startAdornment={<Typography variant="body1" sx={{ mr: 1 }}>$</Typography>}
-              />
-              <Typography variant="caption">~{ethAmount} ETH</Typography>
-            </FormControl>
-             {isOwner && (
-              <Box mt={2}>
-                <Typography variant="h6">Admin Controls</Typography>
-                <Button onClick={withdrawFunds} variant="contained" color="secondary" fullWidth>
-                  Withdraw Funds
-                </Button>
-                <TextField 
+          <Box display="flex" flexDirection="column" gap={3} sx={{pt: 1}}>
+            <Typography>
+              Total Raised: {fundraiser.totalDonations} ETH
+            </Typography>
+            <TextField
+              label="Amount in ETH to Donate"
+              value={donationAmount}
+              onChange={(e) => setDonationAmount(e.target.value)}
+              type="number"
+              placeholder="0.1"
+              fullWidth
+            />
+            {isBeneficiary && (
+              <Box mt={2} sx={{border: '1px dashed grey', p: 2, borderRadius: 1}}>
+                <Typography variant="h6" gutterBottom>Beneficiary Controls</Typography>
+                <Button
+                  onClick={handleWithdraw}
+                  variant="contained"
+                  color="secondary"
                   fullWidth
-                  label="New Beneficiary Address" 
-                  value={newFundBeneficiary}
-                  onChange={(e) => setNewFundBeneficiary(e.target.value)}
-                  sx={{ mt: 1 }}
-                />
-                <Button onClick={setBeneficiary} variant="outlined" sx={{ mt: 1 }} fullWidth>
-                  Set Beneficiary
+                  disabled={isLoading}
+                >
+                  {isLoading ? <CircularProgress size={24} /> : 'Withdraw All Funds'}
                 </Button>
               </Box>
             )}
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={donateFunds} variant="contained">Donate</Button>
+        <DialogActions sx={{p: 3}}>
+          <Button onClick={handleClose} color="inherit">Cancel</Button>
+          <Button onClick={handleDonate} variant="contained" disabled={isLoading}>
+            {isLoading ? <CircularProgress size={24} /> : 'Donate'}
+          </Button>
         </DialogActions>
       </Dialog>
-      
-      <Card sx={{ maxWidth: 345, m: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
+
+      <Card
+        sx={{
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          border: fundraiser.isDAOApproved ? '2px solid' : '1px solid',
+          borderColor: fundraiser.isDAOApproved ? 'primary.main' : 'grey.300',
+        }}
+      >
         <CardMedia
           component="img"
-          height="140"
-          image={contractData.fundImageURL || 'https://via.placeholder.com/345x140?text=EduDAO'}
-          alt={contractData.fundName}
+          height="200"
+          image={fundraiser.imageURL || 'https://via.placeholder.com/400x200?text=No+Image'}
+          alt={`Visual for ${fundraiser.name}`}
         />
         <CardContent sx={{ flexGrow: 1 }}>
-          <Typography gutterBottom variant="h5" component="div">
-            {contractData.fundName}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>
-            {contractData.fundDescription}
-          </Typography>
-          <Typography variant="body2" color="text.primary" sx={{ mt: 1 }}>
-            Total Raised: ${totalDonations}
-          </Typography>
-          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-            Beneficiary: {`${contractData.fundBeneficiary.slice(0, 6)}...${contractData.fundBeneficiary.slice(-4)}`}
+            <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1}}>
+                 <Typography gutterBottom variant="h5" component="div">
+                    {fundraiser.name}
+                </Typography>
+                {fundraiser.isDAOApproved && (
+                <Chip
+                    icon={<VerifiedIcon fontSize='small' />}
+                    label="DAO Certified"
+                    color="primary"
+                    size="small"
+                />
+                )}
+            </Box>
+          <Typography variant="body2" color="text.secondary">
+            {fundraiser.description}
           </Typography>
         </CardContent>
-        <Stack spacing={1} sx={{ p: 2, mt: 'auto' }}>
-          <Button variant="contained" onClick={handleOpen}>
-            Donate Now
-          </Button>
-          <Link href={contractData.fundURL} target="_blank" rel="noopener" sx={{ textAlign: 'center' }}>
+        <CardActions sx={{p: 2, borderTop: '1px solid', borderColor: 'grey.200' }}>
+           <Button 
+            component="a" // Use anchor tag for external link
+            href={fundraiser.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="contained"
+          >
             Learn More
-          </Link>
-        </Stack>
+          </Button>
+          <Button onClick={handleOpen} variant="outlined" sx={{ml: 'auto'}}>
+            Contribute
+          </Button>
+        </CardActions>
       </Card>
     </>
   );

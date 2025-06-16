@@ -45,38 +45,20 @@ contract FundraiserTest is Test {
         uint256 donationAmount = 1 ether;
         vm.prank(DONOR);
         vm.deal(DONOR, donationAmount);
+
+        uint256 initialBeneficiaryBalance = BENEFICIARY.balance;
         
         fundraiser.donate{value: donationAmount}();
 
         assertEq(fundraiser.totalDonations(), donationAmount);
         assertEq(fundraiser.myDonations(DONOR), donationAmount);
-        assertEq(address(fundraiser).balance, donationAmount);
+        assertEq(address(fundraiser).balance, 0);
+        assertEq(BENEFICIARY.balance, initialBeneficiaryBalance + donationAmount);
     }
 
     function test_FailDonateZero() public {
         vm.prank(DONOR);
         vm.expectRevert("Donation must be greater than 0");
         fundraiser.donate{value: 0}();
-    }
-
-    function test_Withdraw() public {
-        uint256 donationAmount = 1 ether;
-        vm.prank(DONOR);
-        vm.deal(DONOR, donationAmount);
-        fundraiser.donate{value: donationAmount}();
-
-        uint256 initialBeneficiaryBalance = BENEFICIARY.balance;
-
-        vm.prank(OWNER);
-        fundraiser.withdraw();
-
-        assertEq(address(fundraiser).balance, 0);
-        assertEq(BENEFICIARY.balance, initialBeneficiaryBalance + donationAmount);
-    }
-
-    function test_FailWithdrawNotOwner() public {
-        vm.prank(DONOR);
-        vm.expectRevert("You are not the owner");
-        fundraiser.withdraw();
     }
 } 

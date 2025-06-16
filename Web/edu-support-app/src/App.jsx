@@ -1,77 +1,71 @@
-import './App.css';
-import { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Outlet, BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import MainLayout from './layouts/MainLayout';
+import Box from '@mui/material/Box';
+import AppBar from '@mui/material/AppBar';
+import Button from '@mui/material/Button';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
+
+import DAOPage from './pages/DAOPage';
+import HomePage from './pages/HomePage.jsx';
 import BrowseProposalsPage from './pages/BrowseProposalsPage';
 import CreateProposalPage from './pages/CreateProposalPage';
-import DAOPage from './pages/DAOPage';
-import PageReceipts from './edu-support/Receipts';
+import { Web3Provider } from './context/Web3Context.jsx';
 
-function App() {
-  const [accounts, setAccounts] = useState([]);
-
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert('MetaMask not installed');
-      return;
-    }
-    try {
-      const userAccounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
-      setAccounts(userAccounts);
-    } catch (error) {
-      console.error('User denied account access:', error);
-    }
-  };
-
-  useEffect(() => {
-    const checkWalletConnection = async () => {
-      if (window.ethereum) {
-        try {
-          const existingAccounts = await window.ethereum.request({
-            method: 'eth_accounts',
-          });
-          if (existingAccounts.length > 0) {
-            setAccounts(existingAccounts);
-          }
-        } catch (error) {
-          console.error('Silent wallet check failed:', error);
-        }
-      }
-    };
-    checkWalletConnection();
-
-    const handleAccountsChanged = (newAccounts) => {
-      setAccounts(newAccounts);
-    };
-
-    if (window.ethereum) {
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-    }
-
-    return () => {
-      if (window.ethereum) {
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      }
-    };
-  }, []);
+const Header = () => {
+  const { account, connectWallet, error } = useWeb3();
 
   return (
-    <Routes>
-      <Route
-        element={
-          <MainLayout onConnectWallet={connectWallet} walletAddress={accounts[0]} />
-        }
-      >
-        <Route path="/" element={<BrowseProposalsPage />} />
-        <Route path="/create-proposal" element={<CreateProposalPage />} />
-        <Route path="/dao" element={<DAOPage />} />
-        <Route path="/edu-support/receipts" element={<PageReceipts />} />
-      </Route>
-    </Routes>
+    <AppBar position="static">
+      <Toolbar>
+        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <a href="/" style={{ textDecoration: 'none', color: 'inherit' }}>EduDAO</a>
+        </Typography>
+        <Button color="inherit" href="/browse">Browse Proposals</Button>
+        <Button color="inherit" href="/create">Create Proposal</Button>
+        <Button color="inherit" href="/dao">DAO</Button>
+        {account ? (
+          <Button color="inherit" variant="outlined" sx={{ ml: 2 }}>
+            {`${account.substring(0, 6)}...${account.substring(account.length - 4)}`}
+          </Button>
+        ) : (
+          <Button color="inherit" variant="contained" sx={{ ml: 2 }} onClick={connectWallet}>
+            Connect Wallet
+          </Button>
+        )}
+      </Toolbar>
+      {error && <Typography color="error" align="center">{error}</Typography>}
+    </AppBar>
   );
-}
+};
+
+const MainLayout = () => {
+  const { account } = useWeb3();
+  return (
+    <Box>
+      <Header />
+      <main>
+        <Outlet context={{ walletAddress: account }} />
+      </main>
+    </Box>
+  );
+};
+
+const App = () => {
+  return (
+    <Web3Provider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="browse" element={<BrowseProposalsPage />} />
+            <Route path="create" element={<CreateProposalPage />} />
+            <Route path="dao" element={<DAOPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </Web3Provider>
+  );
+};
 
 export default App;

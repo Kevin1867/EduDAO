@@ -23,13 +23,14 @@ contract Fundraiser {
 
     uint256 public totalDonations;
     mapping(address => uint256) public myDonations;
+    bool public isDAOApproved;
 
     // =============================================================
     // Events
     // =============================================================
 
     event DonationReceived(address indexed donor, uint256 amount);
-    event Withdrawal(uint256 amount);
+    event DAOApprovalStatusChanged(bool isApproved);
 
     // =============================================================
     // Modifiers
@@ -60,44 +61,28 @@ contract Fundraiser {
         owner = _owner;
     }
 
+    /**
+     * @dev Sets the DAO approval status. Can only be called by the contract owner.
+     * In our design, the owner will be the EduDAO contract, which manages approvals.
+     * @param _approved The new approval status.
+     */
+    function setDAOApproval(bool _approved) public onlyOwner {
+        isDAOApproved = _approved;
+        emit DAOApprovalStatusChanged(_approved);
+    }
+
     function setBeneficiary(address payable _beneficiary) public onlyOwner {
         beneficiary = _beneficiary;
     }
 
     function donate() public payable {
         require(msg.value > 0, "Donation must be greater than 0");
+
+        (bool success, ) = beneficiary.call{value: msg.value}("");
+        require(success, "Transfer failed.");
+
         myDonations[msg.sender] += msg.value;
         totalDonations += msg.value;
-        emit DonationReceived(msg.sender, msg.value);
-    }
-
-    function withdraw() public onlyOwner {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "No funds to withdraw");
-
-        (bool sent, ) = beneficiary.call{value: balance}("");
-        require(sent, "Withdrawal failed");
-        
-        emit Withdrawal(balance);
-    }
-
-    /**
-     * @dev Fallback handler for receiving plain ETH transfers with no calldata.
-     * Increments totals and emits a DonationReceived event.
-     */
-    receive() external payable {
-        totalDonations += msg.value;
-        myDonations[msg.sender] += msg.value;
-        emit DonationReceived(msg.sender, msg.value);
-    }
-
-    /**
-     * @dev Fallback handler for receiving ETH with unrecognized calldata.
-     * Also treats it as a donation.
-     */
-    fallback() external payable {
-        totalDonations += msg.value;
-        myDonations[msg.sender] += msg.value;
         emit DonationReceived(msg.sender, msg.value);
     }
 }

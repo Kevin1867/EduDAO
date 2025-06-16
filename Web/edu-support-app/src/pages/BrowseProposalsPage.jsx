@@ -1,62 +1,113 @@
-import Web3 from 'web3';
 import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
-
-import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
+import CircularProgress from '@mui/material/CircularProgress';
 
-import FundraiserCard from '../components/FundraiserCard'; // Adjusted path
-
-export const ETHEREUM_URL = 'http://127.0.0.1:8545';
-import fundraiserFactoryContractABI from '../edu-support/abi/FundraiserFactory-abi.json'; // Path is correct relative to this file
-import fundraiserFactoryContractAddr from '../edu-support/abi/FundraiserFactory-addr.json'; // Adjusted path
-
-export { fundraiserFactoryContractABI, fundraiserFactoryContractAddr };
+import FundraiserCard from '../components/FundraiserCard';
+import {
+  FUNDRAISER_FACTORY_ABI,
+  FUNDRAISER_FACTORY_ADDRESS,
+  FUNDRAISER_ABI,
+} from '../contracts.js';
+import { useWeb3 } from '../context/Web3Context';
 
 const BrowseProposalsPage = () => {
-  const { walletAddress } = useOutletContext();
-  const [funds, setFunds] = useState([]);
+  const { web3, account } = useWeb3();
+  const [fundraisers, setFundraisers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initWeb3 = async () => {
+    const fetchFundraisers = async () => {
+      if (!web3) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
       try {
-        const web3 = new Web3(ETHEREUM_URL);
-        const instance = new web3.eth.Contract(
-          fundraiserFactoryContractABI,
-          fundraiserFactoryContractAddr.address
+        const factoryInstance = new web3.eth.Contract(
+          FUNDRAISER_FACTORY_ABI,
+          FUNDRAISER_FACTORY_ADDRESS
         );
-        const newFunds = await instance.methods.getAllFundraisers().call();
-        setFunds(newFunds);
+
+        const fundraiserAddresses = await factoryInstance.methods
+          .getAllFundraisers()
+          .call();
+
+        const fundraisersData = await Promise.all(
+          fundraiserAddresses.map(async (address) => {
+            try {
+              const fundraiserContract = new web3.eth.Contract(
+                FUNDRAISER_ABI,
+                address
+              );
+              const [name, description, imageURL, url, beneficiary, isDAOApproved, totalDonations] = await Promise.all([
+                fundraiserContract.methods.name().call(),
+                fundraiserContract.methods.description().call(),
+                fundraiserContract.methods.imageURL().call(),
+                fundraiserContract.methods.url().call(),
+                fundraiserContract.methods.beneficiary().call(),
+                fundraiserContract.methods.isDAOApproved().call(),
+                fundraiserContract.methods.totalDonations().call(),
+              ]);
+
+              return {
+                address,
+                name,
+                description,
+                imageURL,
+                url,
+                beneficiary,
+                isDAOApproved,
+                totalDonations: web3.utils.fromWei(totalDonations, 'ether'),
+              };
+            } catch (e) {
+              console.error(`Failed to load fundraiser at address: ${address}`, e);
+              return null;
+            }
+          })
+        );
+        
+        setFundraisers(fundraisersData.filter(f => f !== null));
+
       } catch (error) {
-        console.error(error);
-        alert('Failed to load Web3 or contract');
+        console.error('Error fetching fundraisers:', error);
+        alert('Failed to load fundraisers. Check the console for details.');
+      } finally {
+        setLoading(false);
       }
     };
-    initWeb3();
-  }, []);
+    fetchFundraisers();
+  }, [web3]);
 
   return (
-    <Container sx={{ mt: 2 }} maxWidth="xl">
-        <Typography variant="h4" align="center" gutterBottom>
-          Browse Student Proposals
-        </Typography>
+    <Container sx={{ py: 4 }} maxWidth="lg">
+      <Typography variant="h4" align="center" gutterBottom>
+        Browse Student Proposals
+      </Typography>
 
-        <Grid container spacing={2} justifyContent="center">
-          {funds.map((fundraiser) => (
-            <Grid
-              item // Use item prop for Grid container
-              xs={12}
-              sm={6}
-              md={4}
-              lg={3}
-              key={fundraiser}
-            >
-              <FundraiserCard fundraiser={fundraiser} connectedAccount={walletAddress} />
-            </Grid>
-          ))}
+      {loading ? (
+        <Grid container justifyContent="center" sx={{ mt: 4 }}>
+          <CircularProgress />
         </Grid>
+      ) : (
+        <Grid container spacing={4} justifyContent="center">
+          {fundraisers.length > 0 ? (
+            fundraisers.map((fundraiser) => (
+              <Grid item xs={12} sm={6} md={4} key={fundraiser.address}>
+                <FundraiserCard
+                  fundraiser={fundraiser}
+                  connectedAccount={account}
+                />
+              </Grid>
+            ))
+          ) : (
+            <Typography sx={{ mt: 4 }} align="center">
+              No fundraiser proposals found.
+            </Typography>
+          )}
+        </Grid>
+      )}
     </Container>
   );
 };
