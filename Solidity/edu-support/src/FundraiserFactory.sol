@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import {Fundraiser} from "./Fundraiser.sol";
-import {EduDAO} from "./EduDAO.sol";
 
 /**
  * @title FundraiserFactory
@@ -15,26 +14,12 @@ contract FundraiserFactory {
 
     Fundraiser[] public fundraisers;
     uint256 public fundraisersCount;
-    address public daoAddress; // Address of the EduDAO contract
 
     // =============================================================
     // Events
     // =============================================================
 
-    event FundraiserCreated(
-        address indexed fundraiserAddress, 
-        address indexed beneficiary, 
-        address indexed owner
-    );
-
-    // =============================================================
-    // Constructor
-    // =============================================================
-    
-    constructor(address _daoAddress) {
-        require(_daoAddress != address(0), "Invalid DAO address");
-        daoAddress = _daoAddress;
-    }
+    event FundraiserCreated(address indexed fundraiserAddress, address indexed owner);
 
     // =============================================================
     // Functions
@@ -58,33 +43,17 @@ contract FundraiserFactory {
         string memory _description,
         address _beneficiary
     ) public {
-        // Create the new Fundraiser contract. The DAO is set as its owner.
         Fundraiser newFundraiser = new Fundraiser(
             _name,
             _url,
             _imageURL,
             _description,
             _beneficiary,
-            daoAddress 
+            msg.sender
         );
-
-        // Store the new fundraiser
         fundraisers.push(newFundraiser);
         fundraisersCount++;
-
-        // Automatically create a proposal in the DAO for the new fundraiser
-        // This requires the factory to be a member of the DAO.
-        EduDAO(daoAddress).createProposal(
-            payable(address(newFundraiser)), 
-            _description
-        );
-
-        // Emit an event
-        emit FundraiserCreated(
-            address(newFundraiser), 
-            _beneficiary, 
-            daoAddress
-        );
+        emit FundraiserCreated(address(newFundraiser), msg.sender);
     }
 
     function getAllFundraisers() public view returns (Fundraiser[] memory) {
