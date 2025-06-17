@@ -46,8 +46,9 @@ const FundraiserCard = ({ fundraiser, connectedAccount }) => {
     fundTotalDonationsWei: 0n, // Use BigInt for ethers v6
   });
 
+  const [totalDonationsUSD, setTotalDonationsUSD] = useState('0.00');
+  const [totalDonationsETH, setTotalDonationsETH] = useState('0');
   const [myTotalDonation, setMyTotalDonation] = useState(0n);
-  const [totalDonations, setTotalDonations] = useState(0);
   const [donationAmount, setDonationAmount] = useState('');
   const [exchangeRate, setExchangeRate] = useState(0);
   const [isOwner, setIsOwner] = useState(false);
@@ -96,6 +97,10 @@ const FundraiserCard = ({ fundraiser, connectedAccount }) => {
       ]);
 
       console.log(`[FundraiserCard for ${fundraiser}] Fetched contract data:`, { fundName, fundBeneficiary, daoApprovalStatus });
+      
+      const ethDonated = ethers.formatEther(fundTotalDonationsWei);
+      setTotalDonationsETH(ethDonated);
+      
       setContractData({
         fundName,
         fundURL,
@@ -109,13 +114,15 @@ const FundraiserCard = ({ fundraiser, connectedAccount }) => {
       try {
         console.log(`[FundraiserCard for ${fundraiser}] Fetching exchange rate...`);
         const prices = await cc.price('ETH', ['USD']); // Fetch the current exchange rate of ETH to USD
-        setExchangeRate(prices.USD);
-        console.log(`[FundraiserCard for ${fundraiser}] Exchange rate is ${prices.USD}`);
-        // Use ethers.formatEther for BigInt
-        const eth = ethers.formatEther(fundTotalDonationsWei);
-        setTotalDonations((prices.USD * eth).toFixed(2));
+        const fetchedRate = prices.USD;
+        setExchangeRate(fetchedRate);
+        console.log(`[FundraiserCard for ${fundraiser}] Exchange rate is ${fetchedRate}`);
+        setTotalDonationsUSD((fetchedRate * parseFloat(ethDonated)).toFixed(2));
       } catch (error) {
-        console.error(`[FundraiserCard for ${fundraiser}] Exchange rate fetch error:`, error);
+        console.error(`[FundraiserCard for ${fundraiser}] Exchange rate fetch error. Using fallback.`, error);
+        const fallbackRate = 3000;
+        setExchangeRate(fallbackRate); // Set fallback rate for donation calculation
+        setTotalDonationsUSD((fallbackRate * parseFloat(ethDonated)).toFixed(2));
       }
 
       if (connectedAccount) {
@@ -325,9 +332,9 @@ const FundraiserCard = ({ fundraiser, connectedAccount }) => {
           </Typography>
           <Box sx={{ mt: 2 }}>
             <Typography variant="body2" color="text.primary" sx={{ fontWeight: 'bold' }}>
-              ${totalDonations} Raised
+              ${totalDonationsUSD} Raised
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
               Beneficiary: {contractData.fundBeneficiary.slice(0, 6)}...{contractData.fundBeneficiary.slice(-4)}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
