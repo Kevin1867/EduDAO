@@ -1,7 +1,7 @@
 // FundraiserCard.jsx - Displays a fundraising campaign card with donation, withdrawal, and beneficiary features
 
 import { ethers } from 'ethers'; // Use ethers instead of Web3
-import cc from 'cryptocompare';
+// import cc from 'cryptocompare'; // No longer needed
 import { useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
@@ -50,9 +50,11 @@ const FundraiserCard = ({ fundraiser, connectedAccount }) => {
   const [totalDonationsETH, setTotalDonationsETH] = useState('0');
   const [myTotalDonation, setMyTotalDonation] = useState(0n);
   const [donationAmount, setDonationAmount] = useState('');
-  const [exchangeRate, setExchangeRate] = useState(0);
   const [isOwner, setIsOwner] = useState(false);
   const [open, setOpen] = useState(false);
+  
+  // Use a fixed exchange rate for demonstration purposes
+  const exchangeRate = 3000; 
 
   // Convert USD donation amount to ETH using exchange rate
   const ethAmount = (donationAmount / exchangeRate || 0).toFixed(4);
@@ -111,19 +113,9 @@ const FundraiserCard = ({ fundraiser, connectedAccount }) => {
       });
       setIsDAOApproved(daoApprovalStatus);
 
-      try {
-        console.log(`[FundraiserCard for ${fundraiser}] Fetching exchange rate...`);
-        const prices = await cc.price('ETH', ['USD']); // Fetch the current exchange rate of ETH to USD
-        const fetchedRate = prices.USD;
-        setExchangeRate(fetchedRate);
-        console.log(`[FundraiserCard for ${fundraiser}] Exchange rate is ${fetchedRate}`);
-        setTotalDonationsUSD((fetchedRate * parseFloat(ethDonated)).toFixed(2));
-      } catch (error) {
-        console.error(`[FundraiserCard for ${fundraiser}] Exchange rate fetch error. Using fallback.`, error);
-        const fallbackRate = 3000;
-        setExchangeRate(fallbackRate); // Set fallback rate for donation calculation
-        setTotalDonationsUSD((fallbackRate * parseFloat(ethDonated)).toFixed(2));
-      }
+      // Directly use the fixed exchange rate for calculation
+      const fallbackRate = 3000;
+      setTotalDonationsUSD((fallbackRate * parseFloat(ethDonated)).toFixed(2));
 
       if (connectedAccount) {
         console.log(`[FundraiserCard for ${fundraiser}] Fetching user-specific data for ${connectedAccount}`);
@@ -166,10 +158,7 @@ const FundraiserCard = ({ fundraiser, connectedAccount }) => {
     }
 
     // Since cryptocompare can fail, use a fallback exchange rate for demonstration.
-    const currentExchangeRate = exchangeRate || 3000; // Fallback to a fixed rate of $3000/ETH
-    if (exchangeRate === 0) {
-      console.warn(`[Donation] CryptoCompare API might have failed. Using fallback exchange rate: $${currentExchangeRate}/ETH`);
-    }
+    const currentExchangeRate = 3000; // Use fixed rate
 
     try {
       const ethTotal = parseFloat(donationAmount) / currentExchangeRate;
@@ -236,12 +225,12 @@ const FundraiserCard = ({ fundraiser, connectedAccount }) => {
 
   // Render list of user's past donations
   const renderMyDonation = () => {
-    if (!connectedAccount || !exchangeRate || myTotalDonation === 0n) {
+    if (!connectedAccount || myTotalDonation === 0n) {
       return null;
     }
 
     const eth = ethers.formatEther(myTotalDonation);
-    const usd = (exchangeRate * eth).toFixed(2);
+    const usd = (exchangeRate * parseFloat(eth)).toFixed(2);
     
     return (
       <Typography variant="body2" color="primary" sx={{ mt: 1 }}>
